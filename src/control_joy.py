@@ -5,6 +5,7 @@ import rospy
 import thread
 import threading
 import time
+
 import mavros
 import struct
 import numpy as np
@@ -60,7 +61,7 @@ def safety_area(data):
                 rospy.sleep(2)
 
 
-def control(data):
+def command(data):
     key = Joy()
     key.buttons = data.buttons
 
@@ -76,13 +77,90 @@ def control(data):
     elif key.buttons[14] :
         start_lqr(False)
 
+    elif key.buttons[11] :
+        # Takeoff
+        setpoint.set(0.0, 0.0, parm.takeoff_alt)
 
+    elif key.buttons[10] :
+        # Land
+        setpoint.set(0.0, 0.0, parm.takeoff_alt/2)
+        setpoint.set(0.0, 0.0, 0.0)
+
+
+
+
+class Setpoint:
+
+    def __init__(self, pub, rospy):
+        self.pub = pub
+        self.rospy = rospy
+
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
+
+        self.threshold = 200.0
+
+        try:
+            thread.start_new_thread( self.tx_sp, () )
+        except:
+            print("Error: Unable to start thread")
+
+        self.done = False
+        self.done_event = threading.Event()
+        rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal)
+
+    def tx_sp(self):
+        rate = self.rospy.Rate(10)
+
+        sp = PoseStamped()
+        sp.header = Header()
+        sp.header.frame_id = "global_frame"
+        sp.header.stamp = rospy.Time.now()
+
+        while True:
+            sp.pose.position.x = self.x
+            sp.pose.position.y = self.y
+            sp.pose.position.z = self.z
+
+            self.pub.publish(sp)
+
+            rate.sleep()
+
+    def set(self, x, y, z, delay=0, wait=True):
+        self.done = False
+        self.x = x
+        self.y = y
+        self.z = z
+
+        if wait:
+            rate = rospy.Rate(5)
+            while not self.done:
+                rate.sleep()
+        
+        time.sleep(delay)
+
+    def goal(self, topic):
+        if abs(topic.pose.position.x - self.x) < self.threshold and abs(topic.pose.position.y - self.y) < self.threshold and abs(topic.pose.position.z - self.z) < self.threshold:
+            self.done = True
+            
+        self.done_event.set()
 
 
 def odrone_interface():
     rospy.Subscriber('/vicon_data', PoseStamped, safety_area)
-    rospy.Subscriber('/joy', Joy, control)
+    rospy.Subscriber('/joy', Joy, command)
+    
+    pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
+
     rospy.init_node('odrone_interface', anonymous=False)
+
+    global setpoint
+    setpoint = Setpoint(pub,rospy)
+
+    # setpoint.set(0.0, 0.0, 1.0)
+    # setpoint.set(0.0, 1.0, 0.0)
+    test()
 
     rospy.spin()
 
