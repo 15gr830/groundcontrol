@@ -27,6 +27,7 @@ class Setpoint:
         self.x = 0.0
         self.y = 0.0
         self.z = 0.0
+        self.setpoint_queue = []
 
         self.threshold = 0.2
 
@@ -41,6 +42,7 @@ class Setpoint:
         self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=1)
         self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=1)
         self.rospy.Subscriber('/joy', Joy, self.joystik)
+        
 
     def tx_sp(self):
         rate = self.rospy.Rate(10)
@@ -59,6 +61,7 @@ class Setpoint:
 
             rate.sleep()
 
+
     def set(self, x, y, z, delay=0, wait=True):
         self.done = False
         self.x = x
@@ -72,6 +75,13 @@ class Setpoint:
         
         time.sleep(delay)
 
+
+    def set(self, setpoint):
+
+        for i in range(0,len(setpoint)):
+            self.setpoint_queue.append(setpoint[i])
+
+
     def goal(self, topic):
 
         if not self.initialised :
@@ -84,7 +94,9 @@ class Setpoint:
             
         self.done_event.set()
 
+
     def arm(self,state):
+
         if state:
             self.initialised = True
         else:
@@ -100,7 +112,9 @@ class Setpoint:
 
         return ret
 
+
     def start_lqr(self, state):
+
         if state:
           start = 1
         else:
@@ -117,7 +131,9 @@ class Setpoint:
         except rospy.ServiceException as ex:
             fault(ex)
 
+
     def safety_area(self,topic):
+
         x = topic.pose.position.x
         y = topic.pose.position.y
         z = topic.pose.position.z
@@ -133,48 +149,28 @@ class Setpoint:
 
 
     def joystik(self, topic):
-        key = Joy()
-        key.buttons = topic.buttons
 
-        if key.buttons[15] :
+        if topic.buttons[15] :
             print("[QGC] ARMING")
             self.arm(True)
-
-        elif key.buttons[13] :
-            print("[QGC] DISARMING")
-            self.arm(False)
-
-        elif key.buttons[12] :
-            print("[QGC] STARTING LQR")
             self.start_lqr(True)
 
-        elif key.buttons[14] :
-            print("[QGC] STOPPING LQR")
+        elif topic.buttons[13] :
+            print("[QGC] DISARMING")
+            self.arm(False)
             self.start_lqr(False)
 
-        elif key.buttons[11] :
-            # Takeoff
+        elif topic.buttons[11] :
             print("[QGC] TAKEOFF")
-            self.set(self.x, self.y, parm.takeoff_alt, wait=False)
+            self.set(parm.takeoff)
 
-        elif key.buttons[10] :
-            # Land
+        elif topic.buttons[10] :
             print("[QGC] LANDING")
-            self.set(self.x, self.y, parm.landing_alt)
-            self.set(self.x, self.y, 0.0)
-            self.arm(False)
+            self.set(parm.landing)
 
-        elif key.buttons[9] :
-            print("EMERGENCY SHUTDOWN")
-            self.done = True
-            self.arm(False)
-
-        elif key.buttons[6] :
+        elif topic.buttons[6] :
             print("[QGC] Flying in squares")
-
-            for i in range(0,len(parm.square)) :
-                self.set(self.x + parm.square[i][0], self.y + parm.square[i][1], self.z + parm.square[i][2])
-
+            self.set.(parm.square)
 
 
 def main():
@@ -182,7 +178,6 @@ def main():
     rospy.init_node('odrone_interface', anonymous=False)
 
     setpoint = Setpoint(pub,rospy)
-    # setpoint.arm(True)
 
     rospy.spin()
 
