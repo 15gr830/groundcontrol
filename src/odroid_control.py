@@ -38,9 +38,9 @@ class Setpoint:
         self.done = False
         self.initialised = False
         self.done_event = threading.Event()
-        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal)
-        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area)
-        self.rospy.Subscriber('/joy', Joy, self.joystik)
+        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=1)
+        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=1)
+        self.rospy.Subscriber('/joy', Joy, self.joystik, queue_size=1)
 
     def tx_sp(self):
         rate = self.rospy.Rate(10)
