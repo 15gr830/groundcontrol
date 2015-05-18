@@ -28,7 +28,7 @@ class Setpoint:
         self.y = 0.0
         self.z = 0.0
 
-        self.threshold = 200.0
+        self.threshold = 0.2
 
         try:
             thread.start_new_thread( self.tx_sp, () )
@@ -40,7 +40,7 @@ class Setpoint:
         self.done_event = threading.Event()
         self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=1)
         self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=1)
-        self.rospy.Subscriber('/joy', Joy, self.joystik, queue_size=1)
+        self.rospy.Subscriber('/joy', Joy, self.joystik)
 
     def tx_sp(self):
         rate = self.rospy.Rate(10)
@@ -169,6 +169,13 @@ class Setpoint:
             self.done = True
             self.arm(False)
 
+        elif key.buttons[6] :
+            print("[QGC] Flying in squares")
+
+            for i in range(0,len(parm.square)) :
+                self.set(self.x + parm.square[i][0], self.y + parm.square[i][1], self.z + parm.square[i][2])
+
+
 
 def main():
     pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
@@ -178,6 +185,7 @@ def main():
     # setpoint.arm(True)
 
     rospy.spin()
+
 
 if __name__ == '__main__':
     try:
