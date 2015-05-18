@@ -1,21 +1,16 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import rospy
-import thread
-import threading
-import time
+import thread, threading, time, struct
 
+import rospy
 import mavros
-import struct
-import numpy as np
+import parameter as parm
 from mavros.utils import *
 from mavros import command
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
-from std_msgs.msg import String
 from sensor_msgs.msg import Joy
-import parameter as parm
 
 
 class Setpoint:
