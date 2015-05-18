@@ -68,6 +68,7 @@ class Setpoint:
 
         if not self.initialised :
             self.init_pose = [topic.pose.position.x, topic.pose.position.y, topic.pose.position.z]
+            self.setpoint = self.init_pose
 
         elif len(self.setpoint_queue):
             for i in range(len(self.setpoint_queue[0])):
@@ -81,7 +82,7 @@ class Setpoint:
 
     def arm(self,state):
         self.setpoint_queue = []
-        
+
         if state:
             self.initialised = True
         else:
@@ -158,7 +159,7 @@ class Setpoint:
 
 
 def main():
-    pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped)
+    pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=1)
     rospy.init_node('odrone_interface', anonymous=False)
 
     Setpoint(pub,rospy)
