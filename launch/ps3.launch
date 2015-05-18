@@ -9,7 +9,7 @@
     <rosparam command="load" file="$(find ps3joy)/diagnostics.yaml" />
   </node>
 
-  <node name="odrone_interface" pkg="groundcontrol" type="control_joy.py" output="screen">
+  <node name="odrone_interface" pkg="groundcontrol" type="odroid_control.py" output="screen">
   </node>
 
   <node name="remote_ptam" pkg="ptam" type="remote_ptam" output="screen">
