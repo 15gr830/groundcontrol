@@ -80,7 +80,8 @@ class Setpoint:
 
 
     def arm(self,state):
-
+        self.setpoint_queue = []
+        
         if state:
             self.initialised = True
         else:
@@ -125,7 +126,7 @@ class Setpoint:
         if (abs(x) > parm.sandbox[0]) or (abs(y) > parm.sandbox[1]) or (z > parm.sandbox[2]) :
                     self.start_lqr(False)
                     self.arm(False)
-                    
+
                     rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
                     rospy.sleep(2)
 
@@ -157,14 +158,10 @@ class Setpoint:
 
 
 def main():
-    pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
+    pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped)
     rospy.init_node('odrone_interface', anonymous=False)
 
-    sp = Setpoint(pub,rospy)
-    rospy.sleep(10)
-    sp.initialised = True
-    sp.set(parm.landing)
-
+    Setpoint(pub,rospy)
     rospy.spin()
 
 
