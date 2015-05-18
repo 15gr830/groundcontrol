@@ -24,25 +24,21 @@ class Setpoint:
         self.pub = pub
         self.rospy = rospy
 
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
+        self.init_pose = [0,0,0]
+        self.setpoint = self.init_pose
         self.setpoint_queue = []
-
-        self.threshold = 0.2
 
         try:
             thread.start_new_thread( self.tx_sp, () )
         except:
             print("Error: Unable to start thread")
 
-        self.done = False
         self.initialised = False
         self.done_event = threading.Event()
-        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=1)
-        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=1)
+        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal)
+        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area)
         self.rospy.Subscriber('/joy', Joy, self.joystik)
-        
+
 
     def tx_sp(self):
         rate = self.rospy.Rate(10)
@@ -53,27 +49,13 @@ class Setpoint:
         sp.header.stamp = self.rospy.Time.now()
 
         while True:
-            sp.pose.position.x = self.x
-            sp.pose.position.y = self.y
-            sp.pose.position.z = self.z
+            sp.pose.position.x = self.setpoint[0]
+            sp.pose.position.y = self.setpoint[1]
+            sp.pose.position.z = self.setpoint[2]
 
             self.pub.publish(sp)
 
             rate.sleep()
-
-
-    def set(self, x, y, z, delay=0, wait=True):
-        self.done = False
-        self.x = x
-        self.y = y
-        self.z = z
-
-        if wait:
-            rate = self.rospy.Rate(3)
-            while not self.done:
-                rate.sleep()
-        
-        time.sleep(delay)
 
 
     def set(self, setpoint):
@@ -85,12 +67,14 @@ class Setpoint:
     def goal(self, topic):
 
         if not self.initialised :
-            self.x = topic.pose.position.x
-            self.y = topic.pose.position.y
-            self.z = topic.pose.position.z
+            self.init_pose = [topic.pose.position.x, topic.pose.position.y, topic.pose.position.z]
 
-        elif abs(topic.pose.position.x - self.x) < self.threshold and abs(topic.pose.position.y - self.y) < self.threshold and abs(topic.pose.position.z - self.z) < self.threshold:
-            self.done = True
+        elif len(self.setpoint_queue):
+            for i in range(len(self.setpoint_queue[0])):
+                self.setpoint[i] = self.setpoint_queue[0][i] + self.init_pose[i]
+
+            if abs(topic.pose.position.x - self.setpoint[0]) < parm.threshold and abs(topic.pose.position.y - self.setpoint[1]) < parm.threshold and abs(topic.pose.position.z - self.setpoint[2]) < parm.threshold:
+                self.setpoint_queue.pop(0)
             
         self.done_event.set()
 
@@ -138,12 +122,10 @@ class Setpoint:
         y = topic.pose.position.y
         z = topic.pose.position.z
 
-        abs_x = np.absolute(x)
-        abs_y = np.absolute(y)
-
-        if (abs_x > parm.sandbox[0]) or (abs_y > parm.sandbox[1]) or (z > parm.sandbox[2]) :
+        if (abs(x) > parm.sandbox[0]) or (abs(y) > parm.sandbox[1]) or (z > parm.sandbox[2]) :
                     self.start_lqr(False)
                     self.arm(False)
+                    
                     rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
                     rospy.sleep(2)
 
@@ -166,18 +148,22 @@ class Setpoint:
 
         elif topic.buttons[10] :
             print("[QGC] LANDING")
+            self.setpoint_queue = []
             self.set(parm.landing)
 
         elif topic.buttons[6] :
             print("[QGC] Flying in squares")
-            self.set.(parm.square)
+            self.set(parm.square)
 
 
 def main():
     pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
     rospy.init_node('odrone_interface', anonymous=False)
 
-    setpoint = Setpoint(pub,rospy)
+    sp = Setpoint(pub,rospy)
+    rospy.sleep(10)
+    sp.initialised = True
+    sp.set(parm.landing)
 
     rospy.spin()
 
