@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 
-sandbox = [1500, 1500, 1500]
-takeoff_alt = 1000
-landing_alt = 300
+sandbox = [1.5, 1.5, 1.5]
+takeoff_alt = 1
+landing_alt = 0.3

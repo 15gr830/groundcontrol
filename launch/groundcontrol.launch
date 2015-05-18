@@ -1,4 +1,7 @@
 <launch>
+  <!-- <node name="joystik" pkg="groundcontrol" type="joystik.sh" output="screen" >
+  </node> -->
+
   <node pkg="joy" type="joy_node" name="ps3_joy" output="screen" >
     <param name="dev" type="string" value="/dev/input/js0" />
     <param name="deadzone" value="0.12" />
