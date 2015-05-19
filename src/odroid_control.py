@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import thread, threading, time, struct, os
+import thread, threading, time, struct, os, sys
 
+import roslib; roslib.load_manifest('groundcontrol')
 import rospy
 import mavros
 import argparse
@@ -12,14 +13,19 @@ from mavros import command
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
 from sensor_msgs.msg import Joy
+from mavros.msg import State
 
 
-parser = argparse.ArgumentParser(description='Control the ODRONE with keyboard or PS3 Joystik')
-parser.add_argument('-c', choices=['joystik', 'keyboard'], default="joystik", help = 'Use keyboard as control input.')
+class Quad_state:
+    arm = False
+    mode = 1
 
-args = parser.parse_args()
-
-
+class Modes:
+    grounded = 1
+    takeoff = 2
+    hovering = 3
+    landing = 4
+    intransit = 5
 
 class Setpoint:
 
@@ -31,6 +37,8 @@ class Setpoint:
         self.init_pose = [0,0,0]
         self.setpoint = self.init_pose
         self.setpoint_queue = []
+        self.quad_state = Quad_state()
+        self.mode = Modes()
 
         try:
             thread.start_new_thread( self.tx_sp, () )
@@ -42,11 +50,12 @@ class Setpoint:
 
         self.initialised = False
         self.done_event = threading.Event()
-        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal)
-        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area)
+        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=1)
+        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=1)
+        self.rospy.Subscriber('mavros/state', State, self.state, queue_size=1)
         
         if self.args == 'joystik':
-            self.rospy.Subscriber('/joy', Joy, self.joystik)
+            self.rospy.Subscriber('/joy', Joy, self.joystik, queue_size=1)
 
 
     def tx_sp(self):
@@ -78,6 +87,7 @@ class Setpoint:
         if not self.initialised :
             self.init_pose = [topic.pose.position.x, topic.pose.position.y, topic.pose.position.z]
             self.setpoint = self.init_pose
+            self.quad_state.mode = self.mode.grounded
 
         elif len(self.setpoint_queue):
             for i in range(len(self.setpoint_queue[0])):
@@ -85,13 +95,14 @@ class Setpoint:
 
             if abs(topic.pose.position.x - self.setpoint[0]) < parm.threshold and abs(topic.pose.position.y - self.setpoint[1]) < parm.threshold and abs(topic.pose.position.z - self.setpoint[2]) < parm.threshold:
                 self.setpoint_queue.pop(0)
+        else:
+            self.quad_state.mode = self.mode.hovering
             
         self.done_event.set()
 
 
     def arm(self,state):
         self.setpoint_queue = []
-
         if state:
             self.initialised = True
         else:
@@ -134,37 +145,46 @@ class Setpoint:
         z = topic.pose.position.z
 
         if (abs(x) > parm.sandbox[0]) or (abs(y) > parm.sandbox[1]) or (z > parm.sandbox[2]) :
-                    self.start_lqr(False)
-                    self.arm(False)
+            while self.quad_state.arm:
+                self.start_lqr(False)
+                self.arm(False)
 
-                    rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
-                    rospy.sleep(2)
+            rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
+
+    def state(self,topic):
+        self.quad_state.arm = topic.armed
 
 
     def joystik(self, topic):
 
-        if topic.buttons[15] :
+        if topic.buttons[15] and not self.quad_state.arm :
             print("[QGC] ARMING")
             self.arm(True)
             self.start_lqr(True)
 
-        elif topic.buttons[13] :
+        elif topic.buttons[13] and self.quad_state.arm :
             print("[QGC] DISARMING")
             self.arm(False)
             self.start_lqr(False)
 
-        elif topic.buttons[11] :
-            print("[QGC] TAKEOFF")
-            self.set(parm.takeoff)
+        elif topic.buttons[12] :
+            if self.quad_state.mode is not self.mode.takeoff:
+                print("[QGC] TAKEOFF")
+                self.set(parm.takeoff)
+                self.quad_state.mode = self.mode.takeoff
 
-        elif topic.buttons[10] :
-            print("[QGC] LANDING")
-            self.setpoint_queue = []
-            self.set(parm.landing)
+        elif topic.buttons[14] :
+            if self.quad_state.mode is not self.mode.landing:
+                print("[QGC] LANDING")
+                self.setpoint_queue = []
+                self.set(parm.landing)
+                self.quad_state.mode = self.mode.landing
 
         elif topic.buttons[6] :
-            print("[QGC] Flying in squares")
-            self.set(parm.square)
+            if self.quad_state.mode is not self.mode.intransit:
+                print("[QGC] Flying in squares")
+                self.set(parm.square)
+                self.quad_state.mode = self.mode.intransit
 
     def keyboard(self):
         print("\n<----CONTROL INPUTS---->")
@@ -211,8 +231,7 @@ def main():
     pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=1)
     rospy.init_node('odrone_interface', anonymous=False)
 
-    Setpoint(args.c,pub,rospy)
-
+    Setpoint(sys.argv[1],pub,rospy)
     rospy.spin()
 
 
