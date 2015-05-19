@@ -86,12 +86,16 @@ class Setpoint:
 
         if not self.initialised :
             self.init_pose = [topic.pose.position.x, topic.pose.position.y, topic.pose.position.z]
-            self.setpoint = self.init_pose
+            
+            self.setpoint[0] = topic.pose.position.x
+            self.setpoint[1] = topic.pose.position.y
+            self.setpoint[2] = topic.pose.position.z
             self.quad_state.mode = self.mode.grounded
 
         elif len(self.setpoint_queue):
-            for i in range(len(self.setpoint_queue[0])):
+            for i in range(0,len(self.setpoint_queue[0])):
                 self.setpoint[i] = self.setpoint_queue[0][i] + self.init_pose[i]
+                # print(self.setpoint)
 
             if abs(topic.pose.position.x - self.setpoint[0]) < parm.threshold and abs(topic.pose.position.y - self.setpoint[1]) < parm.threshold and abs(topic.pose.position.z - self.setpoint[2]) < parm.threshold:
                 self.setpoint_queue.pop(0)
@@ -107,6 +111,7 @@ class Setpoint:
             self.initialised = True
         else:
             self.initialised = False
+            self.quad_state.mode = self.mode.grounded
 
         try:
             ret = command.arming(value=state)
@@ -220,12 +225,12 @@ class Setpoint:
                     self.set(parm.landing)
                     self.quad_state.mode = self.mode.landing
 
-                elif key == 's' and is not self.mode.intransit :
+                elif key == 's' and not self.mode.intransit :
                     print("[QGC] Flying in squares")
                     self.set(parm.square)
                     self.quad_state.mode = self.mode.intransit
 
-                elif key == 'q' and is not self.mode.intransit :
+                elif key == 'q' :
                     print("[QGC] QUITING")
                     self.arm(False)
                     self.start_lqr(False)
