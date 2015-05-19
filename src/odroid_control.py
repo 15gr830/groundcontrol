@@ -199,26 +199,33 @@ class Setpoint:
             try:
                 key = raw_input("\n[GCS] ODRONE >> ")
                 
-                if key == 'a' :
+                if key == 'a' and not self.quad_state.arm:
                     print("[QGC] ARMING")
                     self.arm(True)
                     self.start_lqr(True)
 
-                elif key == 'd' :
+                elif key == 'd' and self.quad_state.arm :
                     print("[QGC] DISARMING")
                     self.arm(False)
                     self.start_lqr(False)
 
-                elif key == 't' :
+                elif key == 't' is not self.mode.takeoff :
                     print("[QGC] TAKEOFF")
                     self.set(parm.takeoff)
+                    self.quad_state.mode = self.mode.takeoff
 
-                elif key == 'l' :
+                elif key == 'l' and not self.mode.landing :
                     print("[QGC] LANDING")
                     self.setpoint_queue = []
                     self.set(parm.landing)
+                    self.quad_state.mode = self.mode.landing
 
-                elif key == 'q' :
+                elif key == 's' and is not self.mode.intransit :
+                    print("[QGC] Flying in squares")
+                    self.set(parm.square)
+                    self.quad_state.mode = self.mode.intransit
+
+                elif key == 'q' and is not self.mode.intransit :
                     print("[QGC] QUITING")
                     self.arm(False)
                     self.start_lqr(False)
