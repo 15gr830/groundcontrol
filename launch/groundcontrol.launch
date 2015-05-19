@@ -1,6 +1,7 @@
 <launch>
   <!-- <node name="joystik" pkg="groundcontrol" type="joystik.sh" output="screen" >
   </node> -->
+  <arg name="control" default="joystik" />
 
   <node pkg="joy" type="joy_node" name="ps3_joy" output="screen" >
     <param name="dev" type="string" value="/dev/input/js0" />
@@ -12,7 +13,7 @@
     <rosparam command="load" file="$(find ps3joy)/diagnostics.yaml" />
   </node>
 
-  <node name="odrone_interface" pkg="groundcontrol" type="odroid_control.py" output="screen">
+  <node name="odrone_interface" pkg="groundcontrol" type="odroid_control.py" args="$(arg control)" output="screen">
   </node>
 
   <node name="remote_ptam" pkg="ptam" type="remote_ptam" output="screen">
