@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import thread, threading, time, struct
+import thread, threading, time, struct, os
 
 import rospy
 import mavros
+import argparse
 import parameter as parm
 from mavros.utils import *
 from mavros import command
@@ -13,10 +14,18 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import Joy
 
 
+parser = argparse.ArgumentParser(description='Control the ODRONE with keyboard or PS3 Joystik')
+parser.add_argument('-c', choices=['joystik', 'keyboard'], default="joystik", help = 'Use keyboard as control input.')
+
+args = parser.parse_args()
+
+
+
 class Setpoint:
 
-    def __init__(self, pub, rospy):
+    def __init__(self, args, pub, rospy):
         self.pub = pub
+        self.args = args
         self.rospy = rospy
 
         self.init_pose = [0,0,0]
@@ -25,6 +34,9 @@ class Setpoint:
 
         try:
             thread.start_new_thread( self.tx_sp, () )
+            
+            if self.args == 'keyboard':
+                thread.start_new_thread( self.keyboard, () )
         except:
             print("Error: Unable to start thread")
 
@@ -32,7 +44,9 @@ class Setpoint:
         self.done_event = threading.Event()
         self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal)
         self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area)
-        self.rospy.Subscriber('/joy', Joy, self.joystik)
+        
+        if self.args == 'joystik':
+            self.rospy.Subscriber('/joy', Joy, self.joystik)
 
 
     def tx_sp(self):
@@ -152,12 +166,53 @@ class Setpoint:
             print("[QGC] Flying in squares")
             self.set(parm.square)
 
+    def keyboard(self):
+        print("\n<----CONTROL INPUTS---->")
+        print("\n\t'a' = ARM")
+        print("\t'd' = DISAM")
+        print("\t't' = TAKEOFF")
+        print("\t'l' = LAND")
+        print("\t's' = Flying in square")
+        print("\t'q' = QUIT")
+
+        while True:
+            try:
+                key = raw_input("\n[GCS] ODRONE >> ")
+                
+                if key == 'a' :
+                    print("[QGC] ARMING")
+                    self.arm(True)
+                    self.start_lqr(True)
+
+                elif key == 'd' :
+                    print("[QGC] DISARMING")
+                    self.arm(False)
+                    self.start_lqr(False)
+
+                elif key == 't' :
+                    print("[QGC] TAKEOFF")
+                    self.set(parm.takeoff)
+
+                elif key == 'l' :
+                    print("[QGC] LANDING")
+                    self.setpoint_queue = []
+                    self.set(parm.landing)
+
+                elif key == 'q' :
+                    print("[QGC] QUITING")
+                    self.arm(False)
+                    self.start_lqr(False)
+                    break
+            except KeyboardInterrupt, SystemExit:
+                print("\EXITING")
+
 
 def main():
     pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=1)
     rospy.init_node('odrone_interface', anonymous=False)
 
-    Setpoint(pub,rospy)
+    Setpoint(args.c,pub,rospy)
+
     rospy.spin()
 
 
