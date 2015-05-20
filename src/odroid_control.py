@@ -158,6 +158,7 @@ class Setpoint:
             while self.quad_state.arm :
                 self.start_lqr(False)
                 self.arm(False)
+                rospy.sleep(1)
 
             rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
 
