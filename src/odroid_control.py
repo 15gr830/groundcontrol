@@ -11,10 +11,11 @@ import parameter as parm
 from mavros.utils import *
 from mavros import command, setpoint as sp
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String
 from sensor_msgs.msg import Joy
 from mavros.msg import State
-from mavros.srv import CommandBool
+from mavros.srv import CommandBool, CommandLong
+from math import copysign
 
 
 class Quad_state:
@@ -30,9 +31,10 @@ class Modes:
 
 class Setpoint:
 
-    def __init__(self, args, pub, rospy):
+    def __init__(self, args, pub_setpoint, pub_ptam, rospy):
         self.args = args
-        self.pub = pub
+        self.pub_setpoint = pub_setpoint
+        self.pub_ptam = pub_ptam
         self.rospy = rospy
 
         self.setpoint = [0,0,0]
@@ -77,7 +79,10 @@ class Setpoint:
             sp.pose.position.y = self.setpoint[1]
             sp.pose.position.z = self.setpoint[2]
 
-            self.pub.publish(sp)
+            try:
+                self.pub_setpoint.publish(sp)
+            except rospy.ServiceException as ex:
+                fault(ex)
 
             rate.sleep()
 
@@ -148,6 +153,24 @@ class Setpoint:
             fault(ex)
 
 
+    # def start_lqr(self, state):
+    #     if state:
+    #         start = 1
+    #     else:
+    #         start = -1
+    #     try:
+    #         lqr_cmd = _get_proxy('command', CommandLong)
+    #         ret = lqr_cmd(command=30002, confirmation=True,
+    #                     param1=start,
+    #                     param2 = 0,
+    #                     param3 = 0,
+    #                     param4 = 0,
+    #                     param5 = 0,
+    #                     param6 = 0)
+    #     except rospy.ServiceException as ex:
+    #         fault(ex)
+
+
     def safety_area(self,topic):
 
         x = topic.pose.position.x
@@ -215,6 +238,18 @@ class Setpoint:
                 self.set(parm.square)
                 self.quad_state.mode = self.mode.intransit
 
+        elif topic.buttons[3] :
+            print("Initialising PTAM")
+            cmd = String()
+            cmd.data = "Space"
+            self.pub_ptam.publish(cmd)
+
+        elif topic.buttons[0] :
+            print("Reset PTAM")
+            cmd = String()
+            cmd.data = "r"
+            self.pub_ptam.publish(cmd)
+
     def keyboard(self):
         print("\n<----CONTROL INPUTS---->")
         print("\n\t'a' = ARM")
@@ -222,6 +257,7 @@ class Setpoint:
         print("\t't' = TAKEOFF")
         print("\t'l' = LAND")
         print("\t's' = Flying in square")
+        print("\t 'Space = initialise PTAM  --> (Tab to times to initialise)")
         print("\t'q' = QUIT")
 
         while True:
@@ -254,6 +290,18 @@ class Setpoint:
                     self.set(parm.square)
                     self.quad_state.mode = self.mode.intransit
 
+                elif key == ' ' :
+                    print("Initialising PTAM")
+                    cmd = String()
+                    cmd.data = "Space"
+                    self.pub_ptam.publish(cmd)
+
+                elif key == 'r' :
+                    print("Reset PTAM")
+                    cmd = String()
+                    cmd.data = "r"
+                    self.pub_ptam.publish(cmd)
+
                 elif key == 'q' :
                     print("[QGC] QUITING")
                     self.arm(False)
@@ -264,10 +312,11 @@ class Setpoint:
 
 
 def main():
-    pub = sp.get_pub_position_local(queue_size=10, latch=True)
+    pub_setpoint = sp.get_pub_position_local(queue_size=10, latch=True)
+    pub_ptam = rospy.Publisher('/vslam/key_pressed', String, queue_size=10)
     rospy.init_node('odrone_interface', anonymous=False)
 
-    Setpoint(sys.argv[1],pub,rospy)
+    Setpoint(sys.argv[1], pub_setpoint, pub_ptam, rospy)
     rospy.spin()
 
 
