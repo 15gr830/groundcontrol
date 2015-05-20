@@ -151,25 +151,7 @@ class Setpoint:
                           param6=0)
         except rospy.ServiceException as ex:
             fault(ex)
-
-
-    # def start_lqr(self, state):
-    #     if state:
-    #         start = 1
-    #     else:
-    #         start = -1
-    #     try:
-    #         lqr_cmd = _get_proxy('command', CommandLong)
-    #         ret = lqr_cmd(command=30002, confirmation=True,
-    #                     param1=start,
-    #                     param2 = 0,
-    #                     param3 = 0,
-    #                     param4 = 0,
-    #                     param5 = 0,
-    #                     param6 = 0)
-    #     except rospy.ServiceException as ex:
-    #         fault(ex)
-
+            
 
     def safety_area(self,topic):
 
