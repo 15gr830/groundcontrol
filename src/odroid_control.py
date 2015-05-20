@@ -9,11 +9,12 @@ import mavros
 import argparse
 import parameter as parm
 from mavros.utils import *
-from mavros import command
+from mavros import command, setpoint as sp
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
 from sensor_msgs.msg import Joy
 from mavros.msg import State
+from mavros.srv import CommandBool
 
 
 class Quad_state:
@@ -30,36 +31,37 @@ class Modes:
 class Setpoint:
 
     def __init__(self, args, pub, rospy):
-        self.pub = pub
         self.args = args
+        self.pub = pub
         self.rospy = rospy
 
-        self.init_pose = [0,0,0]
-        self.setpoint = self.init_pose
+        self.setpoint = [0,0,0]
         self.setpoint_queue = []
         self.quad_state = Quad_state()
         self.mode = Modes()
+        self.current_pose = PoseStamped()
+        self.initialised = False
 
         try:
-            thread.start_new_thread( self.tx_sp, () )
+            thread.start_new_thread( self.send_setpoint, () )
+            thread.start_new_thread( self.watchdog, () )
             
             if self.args == 'keyboard':
                 thread.start_new_thread( self.keyboard, () )
         except:
             print("Error: Unable to start thread")
 
-        self.initialised = False
         self.done_event = threading.Event()
-        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=1)
-        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=1)
-        self.rospy.Subscriber('mavros/state', State, self.state, queue_size=1)
+        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=10)
+        self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=10)
+        self.rospy.Subscriber('mavros/state', State, self.state, queue_size=10)
         
         if self.args == 'joystik':
-            self.rospy.Subscriber('/joy', Joy, self.joystik, queue_size=1)
+            self.rospy.Subscriber('/joy', Joy, self.joystik, queue_size=10)
 
 
-    def tx_sp(self):
-        rate = self.rospy.Rate(10)
+    def send_setpoint(self):
+        rate = self.rospy.Rate(2)
 
         sp = PoseStamped()
         sp.header = Header()
@@ -67,6 +69,10 @@ class Setpoint:
         sp.header.stamp = self.rospy.Time.now()
 
         while True:
+            # for i in range(0,3):
+            #     if (abs(self.setpoint[i]) > parm.safezone[i]):
+            #         self.setpoint[i] = copysign(parm.safezone[i], self.setpoint[i])
+            
             sp.pose.position.x = self.setpoint[0]
             sp.pose.position.y = self.setpoint[1]
             sp.pose.position.z = self.setpoint[2]
@@ -83,19 +89,23 @@ class Setpoint:
 
 
     def goal(self, topic):
+        self.initialised = True
 
-        if not self.initialised :
-            self.init_pose = [topic.pose.position.x, topic.pose.position.y, topic.pose.position.z]
+        self.current_pose.header = topic.header
+        self.current_pose.pose = topic.pose
+        
+        if not self.quad_state.arm:
+            self.init_pose = [self.current_pose.pose.position.x, self.current_pose.pose.position.y, self.current_pose.pose.position.z]
             
-            self.setpoint[0] = topic.pose.position.x
-            self.setpoint[1] = topic.pose.position.y
-            self.setpoint[2] = topic.pose.position.z
+            self.setpoint[0] = self.current_pose.pose.position.x
+            self.setpoint[1] = self.current_pose.pose.position.y
+            self.setpoint[2] = self.current_pose.pose.position.z
+
             self.quad_state.mode = self.mode.grounded
 
         elif len(self.setpoint_queue):
             for i in range(0,len(self.setpoint_queue[0])):
                 self.setpoint[i] = self.setpoint_queue[0][i] + self.init_pose[i]
-                # print(self.setpoint)
 
             if abs(topic.pose.position.x - self.setpoint[0]) < parm.threshold and abs(topic.pose.position.y - self.setpoint[1]) < parm.threshold and abs(topic.pose.position.z - self.setpoint[2]) < parm.threshold:
                 self.setpoint_queue.pop(0)
@@ -105,23 +115,18 @@ class Setpoint:
         self.done_event.set()
 
 
-    def arm(self,state):
+    def arm(self, state):
         self.setpoint_queue = []
-        if state:
-            self.initialised = True
-        else:
-            self.initialised = False
-            self.quad_state.mode = self.mode.grounded
-
         try:
-            ret = command.arming(value=state)
+            arming_cl = self.rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
+            ret = arming_cl(value=state)
         except rospy.ServiceException as ex:
             fault(ex)
 
         if not ret.success:
-            fault("Request failed. Check mavros logs")
-
-        return ret
+            self.rospy.loginfo("Request failed.")
+        else:
+            self.rospy.loginfo("Request success.")
 
 
     def start_lqr(self, state):
@@ -150,7 +155,7 @@ class Setpoint:
         z = topic.pose.position.z
 
         if (abs(x) > parm.sandbox[0]) or (abs(y) > parm.sandbox[1]) or (z > parm.sandbox[2]) :
-            while self.quad_state.arm:
+            while self.quad_state.arm :
                 self.start_lqr(False)
                 self.arm(False)
 
@@ -159,10 +164,28 @@ class Setpoint:
     def state(self,topic):
         self.quad_state.arm = topic.armed
 
+    def watchdog(self):
+        rate = self.rospy.Rate(2)
+
+        while True:
+            if self.initialised:
+                # print("watchdog running")
+                tic = self.current_pose.header.seq 
+                rate.sleep()
+                toc = self.current_pose.header.seq
+
+                if tic is toc and self.quad_state.arm:
+                    print("[QGC] LOST GOT DATA")
+                    self.initialised =False
+                    while self.quad_state.arm:
+                        self.arm(False)
+                        self.start_lqr(False)
+                        rospy.sleep(1)
+
 
     def joystik(self, topic):
 
-        if topic.buttons[15] and not self.quad_state.arm :
+        if topic.buttons[15] and not self.quad_state.arm and self.initialised :
             print("[QGC] ARMING")
             self.arm(True)
             self.start_lqr(True)
@@ -204,7 +227,7 @@ class Setpoint:
             try:
                 key = raw_input("\n[GCS] ODRONE >> ")
                 
-                if key == 'a' and not self.quad_state.arm:
+                if key == 'a' and not self.quad_state.arm and self.initialised:
                     print("[QGC] ARMING")
                     self.arm(True)
                     self.start_lqr(True)
@@ -240,7 +263,7 @@ class Setpoint:
 
 
 def main():
-    pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=1)
+    pub = sp.get_pub_position_local(queue_size=10, latch=True)
     rospy.init_node('odrone_interface', anonymous=False)
 
     Setpoint(sys.argv[1],pub,rospy)
