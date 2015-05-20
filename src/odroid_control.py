@@ -151,7 +151,7 @@ class Setpoint:
                           param6=0)
         except rospy.ServiceException as ex:
             fault(ex)
-            
+
 
     def safety_area(self,topic):
 
@@ -198,8 +198,9 @@ class Setpoint:
 
         elif topic.buttons[13] and self.quad_state.arm :
             print("[QGC] DISARMING")
-            self.arm(False)
-            self.start_lqr(False)
+            while self.quad_state.arm:
+                self.arm(False)
+                self.start_lqr(False)
 
         elif topic.buttons[12] :
             if self.quad_state.mode is not self.mode.takeoff:
