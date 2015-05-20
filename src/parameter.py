@@ -3,8 +3,10 @@
 takeoff_alt = 1
 size_of_squar = 0.5
 threshold = 0.1
+sandbox_buffer = 0.3
 
-sandbox = [1.5, 1.5, 2]
+sandbox = [2, 2, 2]
+safezone = [sandbox[0]-sandbox_buffer, sandbox[1]-sandbox_buffer, sandbox[2]-sandbox_buffer]
 
 takeoff = [[0, 0, takeoff_alt*0.4],
            [0, 0, takeoff_alt]]
