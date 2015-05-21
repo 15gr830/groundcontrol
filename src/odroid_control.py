@@ -43,7 +43,7 @@ class Setpoint:
         self.mode = Modes()
         self.current_pose = PoseStamped()
         self.initialised = False
-        # self.joy = Joy()
+        self.joy = Joy()
 
         try:
             thread.start_new_thread( self.send_setpoint, () )
@@ -217,6 +217,10 @@ class Setpoint:
                     self.set(parm.landing)
                     self.quad_state.mode = self.mode.landing
 
+            elif topic.buttons[9] :
+                print("[QGC] CLEAR SETPOINT QUEUE")
+                self.setpoint_queue = []
+
             elif topic.buttons[6] :
                 if self.quad_state.mode is not self.mode.intransit:
                     print("[QGC] Flying in squares")
@@ -244,7 +248,7 @@ class Setpoint:
         print("\t't' = TAKEOFF")
         print("\t'l' = LAND")
         print("\t's' = Flying in square")
-        print("\t 'Space = initialise PTAM  --> (Tab to times to initialise)")
+        print("\t 'Space = initialise PTAM  --> (Tab + Enter + Tab to initialise)")
         print("\t'q' = QUIT")
 
         while True:
@@ -271,6 +275,10 @@ class Setpoint:
                     self.setpoint_queue = []
                     self.set(parm.landing)
                     self.quad_state.mode = self.mode.landing
+
+                elif key == 'c' :
+                    print("[QGC] CLEAR SETPOINT QUEUE")
+                    self.setpoint_queue = []
 
                 elif key == 's' and not self.mode.intransit :
                     print("[QGC] Flying in squares")
