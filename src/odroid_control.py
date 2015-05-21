@@ -15,7 +15,7 @@ from std_msgs.msg import Header, String
 from sensor_msgs.msg import Joy
 from mavros.msg import State
 from mavros.srv import CommandBool, CommandLong
-from math import copysign
+# from math import copysign
 
 
 class Quad_state:
@@ -43,6 +43,7 @@ class Setpoint:
         self.mode = Modes()
         self.current_pose = PoseStamped()
         self.initialised = False
+        # self.joy = Joy()
 
         try:
             thread.start_new_thread( self.send_setpoint, () )
@@ -59,7 +60,7 @@ class Setpoint:
         self.rospy.Subscriber('mavros/state', State, self.state, queue_size=10)
         
         if self.args == 'joystik':
-            self.rospy.Subscriber('/joy', Joy, self.joystik, queue_size=10)
+            self.rospy.Subscriber('/joy', Joy.buttons, self.joystik, queue_size=10)
 
 
     def send_setpoint(self):
@@ -184,54 +185,57 @@ class Setpoint:
                     print("[QGC] LOST GOT DATA")
                     self.initialised =False
                     while self.quad_state.arm:
-                        self.arm(False)
+                        self.arm(False)                 
                         self.start_lqr(False)
                         rospy.sleep(1)
 
-
     def joystik(self, topic):
+        if topic.buttons is not self.joy.buttons:
 
-        if topic.buttons[15] and not self.quad_state.arm and self.initialised :
-            print("[QGC] ARMING")
-            self.arm(True)
-            self.start_lqr(True)
+            if topic.buttons[15] and not self.quad_state.arm and self.initialised :
+                print("[QGC] ARMING")
+                self.arm(True)
+                self.start_lqr(True)
 
-        elif topic.buttons[13] and self.quad_state.arm :
-            print("[QGC] DISARMING")
-            while self.quad_state.arm:
-                self.arm(False)
-                self.start_lqr(False)
+            elif topic.buttons[13] and self.quad_state.arm :
+                print("[QGC] DISARMING")
+                while self.quad_state.arm:
+                    self.arm(False)
+                    self.start_lqr(False)
+                    rospy.sleep(1)
 
-        elif topic.buttons[12] :
-            if self.quad_state.mode is not self.mode.takeoff:
-                print("[QGC] TAKEOFF")
-                self.set(parm.takeoff)
-                self.quad_state.mode = self.mode.takeoff
+            elif topic.buttons[12] :
+                if self.quad_state.mode is not self.mode.takeoff:
+                    print("[QGC] TAKEOFF")
+                    self.set(parm.takeoff)
+                    self.quad_state.mode = self.mode.takeoff
 
-        elif topic.buttons[14] :
-            if self.quad_state.mode is not self.mode.landing:
-                print("[QGC] LANDING")
-                self.setpoint_queue = []
-                self.set(parm.landing)
-                self.quad_state.mode = self.mode.landing
+            elif topic.buttons[14] :
+                if self.quad_state.mode is not self.mode.landing:
+                    print("[QGC] LANDING")
+                    self.setpoint_queue = []
+                    self.set(parm.landing)
+                    self.quad_state.mode = self.mode.landing
 
-        elif topic.buttons[6] :
-            if self.quad_state.mode is not self.mode.intransit:
-                print("[QGC] Flying in squares")
-                self.set(parm.square)
-                self.quad_state.mode = self.mode.intransit
+            elif topic.buttons[6] :
+                if self.quad_state.mode is not self.mode.intransit:
+                    print("[QGC] Flying in squares")
+                    self.set(parm.square)
+                    self.quad_state.mode = self.mode.intransit
 
-        elif topic.buttons[3] :
-            print("Initialising PTAM")
-            cmd = String()
-            cmd.data = "Space"
-            self.pub_ptam.publish(cmd)
+            elif topic.buttons[3] :
+                print("Initialising PTAM")
+                cmd = String()
+                cmd.data = "Space"
+                self.pub_ptam.publish(cmd)
 
-        elif topic.buttons[0] :
-            print("Reset PTAM")
-            cmd = String()
-            cmd.data = "r"
-            self.pub_ptam.publish(cmd)
+            elif topic.buttons[0] :
+                print("Reset PTAM")
+                cmd = String()
+                cmd.data = "r"
+                self.pub_ptam.publish(cmd)
+
+        self.joy.buttons = topic.buttons
 
     def keyboard(self):
         print("\n<----CONTROL INPUTS---->")
