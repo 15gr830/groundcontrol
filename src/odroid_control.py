@@ -58,7 +58,6 @@ class Setpoint:
 
         self.done_event = threading.Event()
         # self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=10)
-        # self.rospy.Subscriber('/vicon_data', PoseStamped, self.goal, queue_size=10)
         self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=10)
         self.rospy.Subscriber('mavros/state', State, self.state, queue_size=10)
         
@@ -120,11 +119,11 @@ class Setpoint:
             y_err = abs(topic.pose.position.y - self.setpoint[1])
             z_err = abs(topic.pose.position.z - self.setpoint[2])
 
-            print("x_err: %2.5f  y_err: %2.5f  z_err: %2.5f" % (x_err, y_err, z_err))
+            # print("x_err: %2.5f  y_err: %2.5f  z_err: %2.5f" % (x_err, y_err, z_err))
 
             if self.quad_state.mode is self.mode.landing and z_err < parm.threshold:
                 self.setpoint_queue = []
-                
+                rospy.sleep(2)
                 while self.quad_state.arm :
                     self.start_lqr(False)
                     self.arm(False)
