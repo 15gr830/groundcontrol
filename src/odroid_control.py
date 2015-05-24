@@ -57,7 +57,7 @@ class Setpoint:
             print("Error: Unable to start thread")
 
         self.done_event = threading.Event()
-        # self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=10)
+        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=10)
         self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=10)
         self.rospy.Subscriber('mavros/state', State, self.state, queue_size=10)
         
@@ -185,8 +185,8 @@ class Setpoint:
 
             rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
 
-        # Included because of use of Vicon data instead of GOT data
-        self.goal(topic)
+        # # Included because of use of Vicon data instead of GOT data
+        # self.goal(topic)
 
     def state(self,topic):
         self.quad_state.arm = topic.armed
@@ -330,7 +330,8 @@ class Setpoint:
 
 
 def main():
-    pub_setpoint = sp.get_pub_position_local(queue_size=10, latch=True)
+    # pub_setpoint = sp.get_pub_position_local(queue_size=10, latch=True)
+    pub_setpoint = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
     pub_ptam = rospy.Publisher('/vslam/key_pressed', String, queue_size=10)
     rospy.init_node('odrone_interface', anonymous=False)
 
