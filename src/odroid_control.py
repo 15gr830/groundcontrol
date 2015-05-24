@@ -57,7 +57,7 @@ class Setpoint:
             print("Error: Unable to start thread")
 
         self.done_event = threading.Event()
-        self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=10)
+        # self.rospy.Subscriber('/mavros/mocap/pose', PoseStamped, self.goal, queue_size=10)
         self.rospy.Subscriber('/vicon_data', PoseStamped, self.safety_area, queue_size=10)
         self.rospy.Subscriber('mavros/state', State, self.state, queue_size=10)
         
@@ -122,8 +122,7 @@ class Setpoint:
             # print("x_err: %2.5f  y_err: %2.5f  z_err: %2.5f" % (x_err, y_err, z_err))
 
             if self.quad_state.mode is self.mode.landing and z_err < parm.threshold:
-                self.setpoint_queue = []
-                rospy.sleep(2)
+                rospy.sleep(1)
                 while self.quad_state.arm :
                     self.start_lqr(False)
                     self.arm(False)
@@ -185,8 +184,8 @@ class Setpoint:
 
             rospy.loginfo("\n[GCS] QUAD OUTSIDE SANDBOX")
 
-        # # Included because of use of Vicon data instead of GOT data
-        # self.goal(topic)
+        # Included because of use of Vicon data instead of GOT data
+        self.goal(topic)
 
     def state(self,topic):
         self.quad_state.arm = topic.armed
