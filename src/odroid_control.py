@@ -109,7 +109,7 @@ class Setpoint:
             self.setpoint[1] = self.current_pose.pose.position.y
             self.setpoint[2] = self.current_pose.pose.position.z
 
-            self.quad_state.mode = self.mode.grounded
+            self.mode_status(self.mode.grounded)
 
         elif len(self.setpoint_queue) > 0:
             for i in range(0,len(self.setpoint_queue[0])):
@@ -132,7 +132,7 @@ class Setpoint:
                 self.setpoint_queue.pop(0)
 
         else:
-            self.quad_state.mode = self.mode.hovering
+            self.mode_status(self.mode.hovering)
             
         self.done_event.set()
 
@@ -187,8 +187,10 @@ class Setpoint:
         # Included because of use of Vicon data instead of GOT data
         self.goal(topic)
 
+
     def state(self,topic):
         self.quad_state.arm = topic.armed
+
 
     def watchdog(self):
         rate = self.rospy.Rate(4)
@@ -207,6 +209,29 @@ class Setpoint:
                         self.arm(False)                 
                         self.start_lqr(False)
                         rospy.sleep(1)
+
+
+    def mode_status(self, mode):
+        if mode is not self.quad_state.mode:
+            if mode is self.mode.takeoff:
+                print("[MODE] TAKEOFF")
+                self.quad_state.mode = mode
+
+            elif mode is self.mode.landing:
+                print("[MODE] LANDING")
+                self.quad_state.mode = mode
+
+            elif mode is self.mode.hovering:
+                print("[MODE] HOVERING")
+                self.quad_state.mode = mode
+
+            elif mode is self.mode.intransit:
+                print("[MODE] IN TRANSIT")
+                self.quad_state.mode = mode
+
+            elif mode is self.mode.grounded:
+                print("[MODE] GROUDED")
+                self.quad_state.mode = mode
 
     def joystik(self, topic):
         if not len(self.memJoy.buttons):
@@ -230,14 +255,16 @@ class Setpoint:
                 if self.quad_state.mode is not self.mode.takeoff:
                     print("[QGC] TAKEOFF")
                     self.set(parm.takeoff)
-                    self.quad_state.mode = self.mode.takeoff
+                    self.mode_status(self.mode.takeoff)
+                    # self.quad_state.mode = self.mode.takeoff
 
             elif topic.buttons[14] :
                 if self.quad_state.mode is not self.mode.landing:
                     print("[QGC] LANDING")
                     self.setpoint_queue = []
                     self.set(parm.landing)
-                    self.quad_state.mode = self.mode.landing
+                    self.mode_status(self.mode.landing)
+                    # self.quad_state.mode = self.mode.landing
 
             elif topic.buttons[11] :
                 print("[QGC] CLEAR SETPOINT QUEUE")
@@ -247,7 +274,8 @@ class Setpoint:
                 if self.quad_state.mode is not self.mode.intransit:
                     print("[QGC] Flying in squares")
                     self.set(parm.square)
-                    self.quad_state.mode = self.mode.intransit
+                    self.mode_status(self.mode.intransit)
+                    # self.quad_state.mode = self.mode.intransit
 
             elif topic.buttons[3] :
                 print("Initialising PTAM")
