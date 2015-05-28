@@ -230,7 +230,7 @@ class Setpoint:
                 self.quad_state.mode = mode
 
             elif mode is self.mode.grounded:
-                print("[MODE] GROUDED")
+                print("[MODE] GROUNDED")
                 self.quad_state.mode = mode
 
     def joystik(self, topic):
